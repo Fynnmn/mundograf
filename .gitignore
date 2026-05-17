@@ -1,0 +1,15 @@
+# Handoff / source junk — no va al repo de la web
+Mundograf-handoff.zip
+ChatGPT Image*.png
+Logo Mundograf.png
+*.gz
+*.zip
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Netlify CLI
+.netlify/
