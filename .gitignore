@@ -17,3 +17,7 @@ Thumbs.db
 
 # Netlify CLI
 .netlify/
+
+# Build artifact (lo arma el workflow)
+dist/
+.wrangler/

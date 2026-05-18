@@ -1,0 +1,30 @@
+name: Deploy a Cloudflare Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Armar carpeta de publicación
+        run: |
+          mkdir -p dist/assets
+          cp index.html favicon.svg og-image.jpg robots.txt sitemap.xml dist/
+          cp assets/p1.jpg assets/p2.jpg assets/p3.jpg assets/p4.jpg assets/p5.jpg assets/p6.jpg dist/assets/
+          printf '/*\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: SAMEORIGIN\n  Referrer-Policy: strict-origin-when-cross-origin\n  Permissions-Policy: geolocation=(), microphone=(), camera=()\n/index.html\n  Cache-Control: public, max-age=0, must-revalidate\n' > dist/_headers
+
+      - name: Deploy a Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "514cfdfb4bebad6d97f53770364293bb"
+          command: pages deploy dist --project-name=mundograf --branch=main
