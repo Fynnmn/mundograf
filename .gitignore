@@ -5,6 +5,10 @@ Logo Mundograf.png
 *.gz
 *.zip
 
+# Fotos crudas (originales sin procesar) — solo van las finales assets/p?.jpg
+assets/*.jpeg
+assets/WhatsApp*
+
 # OS / editor
 .DS_Store
 Thumbs.db
