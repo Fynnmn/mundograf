@@ -1,0 +1,193 @@
+{
+  "version": 1,
+  "negocio": {
+    "whatsapp": "099 560 752",
+    "mensajeWa": "Hola Mundograf, me gustaría pedir un presupuesto.",
+    "email": "mundograf@gmail.com",
+    "instagram": "mundograf",
+    "facebook": "https://www.facebook.com/mundograf.srl",
+    "ciudades": [
+      "Fray Bentos",
+      "Montevideo"
+    ]
+  },
+  "portada": {
+    "etiqueta": "Imprenta · Diseño Gráfico · Uruguay",
+    "titulo": "Diseño e impresión profesional para tu marca",
+    "destacado": "profesional",
+    "bajada": "Logos, identidad visual, señalización e impresos. Estudio con presencia en Fray Bentos y Montevideo.",
+    "boton": "Pedí tu presupuesto"
+  },
+  "servicios": {
+    "titulo": "Servicios completos\nde diseño e impresión",
+    "bajada": "Desde la idea hasta el producto impreso. Te acompañamos en cada etapa del proceso creativo y productivo.",
+    "items": [
+      {
+        "id": "s1",
+        "icono": "marca",
+        "titulo": "Logos y marcas",
+        "texto": "Creación de logotipos memorables y sistemas de marca con identidad propia."
+      },
+      {
+        "id": "s2",
+        "icono": "paleta",
+        "titulo": "Identidad visual",
+        "texto": "Sistemas visuales completos: paleta, tipografías, aplicaciones y manual de marca."
+      },
+      {
+        "id": "s3",
+        "icono": "megafono",
+        "titulo": "Diseño publicitario",
+        "texto": "Flyers, banners, piezas para redes sociales y vía pública con impacto."
+      },
+      {
+        "id": "s4",
+        "icono": "escudo",
+        "titulo": "Señalización de seguridad",
+        "texto": "Carteles normativos, pictogramas y señalética industrial y comercial."
+      },
+      {
+        "id": "s5",
+        "icono": "libro",
+        "titulo": "Diseño editorial",
+        "texto": "Revistas, catálogos, libros, folletos y memorias institucionales."
+      },
+      {
+        "id": "s6",
+        "icono": "impresora",
+        "titulo": "Impresión digital y offset",
+        "texto": "Producción gráfica con acabados profesionales en cualquier tirada."
+      }
+    ]
+  },
+  "porque": {
+    "titulo": "Tu marca en manos\nde un equipo que escucha",
+    "bajada": "No somos una imprenta más. Somos diseñadores que también imprimen, y eso cambia todo el proceso: cuidamos la idea desde el primer trazo hasta el último corte.",
+    "cifras": [
+      {
+        "valor": "2",
+        "etiqueta": "ciudades"
+      },
+      {
+        "valor": "100+",
+        "etiqueta": "proyectos entregados"
+      },
+      {
+        "valor": "6",
+        "etiqueta": "áreas de servicio"
+      }
+    ],
+    "puntos": [
+      {
+        "id": "w1",
+        "titulo": "Experiencia comprobada",
+        "texto": "Años desarrollando marcas, identidades visuales y soluciones gráficas para empresas e instituciones uruguayas."
+      },
+      {
+        "id": "w2",
+        "titulo": "Atención personalizada",
+        "texto": "Tratamos cada proyecto como único. Te escuchamos, proponemos y ajustamos hasta que el resultado sea exactamente lo que necesitás."
+      },
+      {
+        "id": "w3",
+        "titulo": "Calidad de impresión",
+        "texto": "Tecnología digital y offset para acabados profesionales. Cuidamos color, papel y terminación en cada tirada."
+      },
+      {
+        "id": "w4",
+        "titulo": "Dos ciudades, un solo equipo",
+        "texto": "Presencia y producción en Fray Bentos y Montevideo. Cobertura ágil y entrega coordinada en todo el país."
+      }
+    ]
+  },
+  "trabajos": {
+    "titulo": "Una selección\nde proyectos recientes",
+    "bajada": "Marcas, piezas editoriales, señalética y publicidad para clientes de distintos rubros.",
+    "items": [
+      {
+        "id": "t1",
+        "visible": true,
+        "etiqueta": "Señalización gran formato",
+        "alt": "Vidriera Duty Free Shop Fray Bentos con señalización en gran formato",
+        "foto": {
+          "l": "/assets/p1.jpg",
+          "s": "/assets/p1.jpg",
+          "w": 1500,
+          "h": 1100
+        }
+      },
+      {
+        "id": "t2",
+        "visible": true,
+        "etiqueta": "Vidrieras",
+        "alt": "Vidriera de agencia de viajes con gráfica impresa",
+        "foto": {
+          "l": "/assets/p2.jpg",
+          "s": "/assets/p2.jpg",
+          "w": 1600,
+          "h": 560
+        }
+      },
+      {
+        "id": "t3",
+        "visible": true,
+        "etiqueta": "Señalización",
+        "alt": "Vidriera promocional con vinilo impreso y código QR",
+        "foto": {
+          "l": "/assets/p3.jpg",
+          "s": "/assets/p3.jpg",
+          "w": 840,
+          "h": 600
+        }
+      },
+      {
+        "id": "t4",
+        "visible": true,
+        "etiqueta": "Impresión",
+        "alt": "Pliego de etiquetas UPM impreso en offset",
+        "foto": {
+          "l": "/assets/p4.jpg",
+          "s": "/assets/p4.jpg",
+          "w": 840,
+          "h": 600
+        }
+      },
+      {
+        "id": "t5",
+        "visible": true,
+        "etiqueta": "Publicidad",
+        "alt": "Banner publicitario tipo lágrima de Mayo Amarillo",
+        "foto": {
+          "l": "/assets/p5.jpg",
+          "s": "/assets/p5.jpg",
+          "w": 1280,
+          "h": 685
+        }
+      },
+      {
+        "id": "t6",
+        "visible": true,
+        "etiqueta": "Vinilos",
+        "alt": "Vinilo en vidriera de Moura y LCH Alineaciones",
+        "foto": {
+          "l": "/assets/p6.jpg",
+          "s": "/assets/p6.jpg",
+          "w": 1600,
+          "h": 420
+        }
+      }
+    ]
+  },
+  "contacto": {
+    "titulo": "¿Tenés un proyecto\nen mente?",
+    "bajada": "Contanos qué necesitás y te respondemos en menos de 24 horas con una propuesta a medida. La forma más rápida: WhatsApp.",
+    "gracias": "¡Gracias! Te respondemos a la brevedad."
+  },
+  "pie": {
+    "texto": "Imprenta y estudio de diseño gráfico. Tu marca en buenas manos, desde el primer trazo hasta la última impresión."
+  },
+  "seo": {
+    "titulo": "Mundograf — Imprenta y Diseño Gráfico en Fray Bentos y Montevideo",
+    "descripcion": "Imprenta y estudio de diseño gráfico en Fray Bentos y Montevideo. Logos, identidad visual, señalización, editorial e impresión offset. Presupuesto en 24 h."
+  }
+}

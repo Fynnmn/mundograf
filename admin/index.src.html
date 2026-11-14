@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="es-UY">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Panel · Mundograf</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F2F3F5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111214" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Mundograf">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" href="iconos/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="admin.css">
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><g id="mg-logo">%%LOGO%%</g></defs></svg>
+
+<!-- Ingreso -->
+<div class="ingreso" id="ingreso" hidden>
+  <form class="ingreso__caja" id="form-ingreso" novalidate>
+    <svg class="ingreso__globo" viewBox="690 427 140 129" aria-hidden="true"><use href="#mg-logo"/></svg>
+    <h1 class="ingreso__titulo">Panel de Mundograf</h1>
+    <p class="ingreso__texto">Desde acá cambiás los textos, las fotos y los datos de mundograf.com.uy.</p>
+
+    <button type="button" class="boton boton--lleno boton--ancho" id="entrar-llave" hidden>
+      <span data-metodo>Entrar con Face ID</span>
+    </button>
+    <div class="ingreso__o" id="ingreso-o" hidden><span>o con tu contraseña</span></div>
+
+    <label class="campo">
+      <span class="campo__etiqueta">Contraseña</span>
+      <span class="clave">
+        <input class="campo__control" type="password" name="password" id="password" autocomplete="current-password" required>
+        <button type="button" class="clave__ver" data-ver-clave aria-label="Mostrar contraseña" aria-pressed="false">Mostrar</button>
+      </span>
+    </label>
+    <p class="ingreso__error" id="ingreso-error" role="alert" hidden></p>
+    <button type="submit" class="boton boton--marca boton--ancho" id="entrar">Entrar</button>
+    <a class="ingreso__volver" href="/">Ir a la página</a>
+  </form>
+</div>
+
+<!-- Panel -->
+<div class="app" id="app" hidden>
+  <aside class="riel" aria-label="Secciones">
+    <a class="riel__marca" href="#/" aria-label="Inicio del panel">
+      <svg viewBox="240 420 960 130" role="img" aria-label="Mundograf"><use href="#mg-logo"/></svg>
+    </a>
+    <nav class="riel__nav" id="nav"></nav>
+    <div class="riel__pie">
+      <a class="riel__ver" href="/" target="_blank" rel="noopener">
+        Abrir mundograf.com.uy
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3h7v7M13 3 4 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+    </div>
+  </aside>
+
+  <main class="editor" id="editor">
+    <header class="editor__barra" id="barra">
+      <a class="editor__atras" href="#/" id="atras" aria-label="Volver a las secciones">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4 6.5 10l6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Secciones</span>
+      </a>
+      <span class="editor__barra-titulo" id="barra-titulo"></span>
+    </header>
+    <div class="editor__cuerpo" id="vista" tabindex="-1"></div>
+  </main>
+
+  <section class="previa" id="previa" aria-label="Vista previa">
+    <div class="previa__barra">
+      <div class="segmentos" role="radiogroup" aria-label="Tamaño de la vista previa">
+        <button type="button" role="radio" aria-checked="true" data-disp="compu">Computadora</button>
+        <button type="button" role="radio" aria-checked="false" data-disp="celu">Celular</button>
+        <span class="segmentos__marca" aria-hidden="true"></span>
+      </div>
+      <span class="previa__estado" id="previa-estado">Vista previa</span>
+      <button type="button" class="icono-boton previa__cerrar" id="previa-cerrar" aria-label="Cerrar la vista previa">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5 5 15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="previa__escenario" id="escenario">
+      <div class="previa__marco" id="marco">
+        <iframe name="previa-a" id="previa-a" title="Vista previa de la página" class="activo"></iframe>
+        <iframe name="previa-b" id="previa-b" title="Vista previa de la página" tabindex="-1" aria-hidden="true"></iframe>
+      </div>
+    </div>
+  </section>
+
+  <div class="publicar" id="publicar" data-estado="limpio">
+    <div class="publicar__texto">
+      <strong id="publicar-titulo">Todo publicado</strong>
+      <span id="publicar-detalle"></span>
+    </div>
+    <div class="publicar__acciones">
+      <button type="button" class="boton boton--claro publicar__ver" id="ver-previa">Vista previa</button>
+      <button type="button" class="boton boton--claro" id="descartar">Descartar</button>
+      <button type="button" class="boton boton--marca" id="publicar-btn">Publicar</button>
+    </div>
+  </div>
+</div>
+
+<form id="form-previa" method="post" action="/vista-previa" target="previa-b" hidden>
+  <input type="hidden" name="contenido">
+  <input type="hidden" name="scroll">
+  <input type="hidden" name="ir">
+</form>
+
+<div class="avisos" id="avisos" aria-live="polite"></div>
+
+<script type="module" src="admin.js"></script>
+</body>
+</html>

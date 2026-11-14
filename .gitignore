@@ -21,3 +21,11 @@ Thumbs.db
 # Build artifact (lo arma el workflow)
 dist/
 .wrangler/
+
+# Panel
+node_modules/
+.dev.vars
+lib/plantilla.gen.js
+CREDENCIALES-PANEL.txt
+
+revision/

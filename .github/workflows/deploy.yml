@@ -15,13 +15,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Armar carpeta de publicación
-        run: |
-          mkdir -p dist/assets
-          cp index.html favicon.svg og-image.jpg robots.txt sitemap.xml dist/
-          cp assets/p1.jpg assets/p2.jpg assets/p3.jpg assets/p4.jpg assets/p5.jpg assets/p6.jpg dist/assets/
-          printf '/*\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: SAMEORIGIN\n  Referrer-Policy: strict-origin-when-cross-origin\n  Permissions-Policy: geolocation=(), microphone=(), camera=()\n/index.html\n  Cache-Control: public, max-age=0, must-revalidate\n' > dist/_headers
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
 
+      # Arma dist/ (página + panel) y la plantilla que usan las Functions
+      - name: Armar la página y el panel
+        run: node build.mjs
+
+      # Publica dist/ junto con functions/ (portada, vista previa, API del panel y fotos)
       - name: Deploy a Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:

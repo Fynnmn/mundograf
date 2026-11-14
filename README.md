@@ -1,36 +1,12 @@
-# Mundograf — Landing Page
+# Mundograf
 
-Sitio web de **Mundograf**, imprenta y estudio de diseño gráfico (Fray Bentos y Montevideo, Uruguay).
+Página de **Mundograf**, imprenta y estudio de diseño gráfico (Fray Bentos y Montevideo, Uruguay), con panel para que el cliente la edite.
 
-## Stack
+- `plantilla.html`: la página (diseño, estilos y marcadores del contenido).
+- `data/contenido.json`: el contenido inicial. Desde que se publica, el contenido lo maneja el panel.
+- `admin/`: el panel. `functions/` y `lib/`: el servidor (Cloudflare Pages Functions).
+- `build.mjs`: arma `dist/`, que es lo que se publica.
 
-- HTML + CSS + JavaScript vanilla — un solo archivo, sin build.
-- Google Fonts (Barlow Condensed + Inter).
-- Logo oficial inline en SVG (recoloreable vía `currentColor`).
+Cómo funciona el panel, cómo probarlo y cómo publicarlo: [PANEL.md](PANEL.md).
 
-## Estructura
-
-| Archivo | Descripción |
-|---------|-------------|
-| `index.html` | El sitio completo (markup + estilos + scripts). |
-| `netlify.toml` | Config de deploy en Netlify (sitio estático, headers). |
-| `Mundograf logo.svg` | Logo oficial vectorial (fuente). |
-| `mundograf-brand-kit.md` | Brand kit: colores, tipografía, tono. |
-
-## Desarrollo
-
-Es estático: abrí `index.html` en el navegador, o serví la carpeta:
-
-```bash
-npx serve .
-```
-
-## Deploy
-
-Conectado a Netlify con CI/CD. Cada `git push` a `main` redeploya automáticamente.
-
-## Pendientes
-
-- Reemplazar los placeholders del portfolio por fotos reales de trabajos.
-- Conectar el formulario de contacto a un backend (Formspree / Netlify Forms).
-- Video de fondo en el hero (opcional).
+Deploy: cada `git push` a `main` publica en Cloudflare Pages (proyecto `mundograf`) con GitHub Actions.

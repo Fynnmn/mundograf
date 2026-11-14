@@ -1,0 +1,13 @@
+{
+  "name": "mundograf",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs && wrangler pages dev --port 8796 --ip 127.0.0.1",
+    "deploy": "node build.mjs && wrangler pages deploy dist --project-name=mundograf --branch=main"
+  },
+  "devDependencies": {
+    "wrangler": "^4.40.0"
+  }
+}

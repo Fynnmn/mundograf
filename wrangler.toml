@@ -1,0 +1,12 @@
+# Mundograf: Cloudflare Pages + Functions
+# Local:    npm run dev   (KV simulado, sin cuenta) → http://127.0.0.1:8796 y /admin/
+# Publicar: ver PANEL.md
+name = "mundograf"
+pages_build_output_dir = "dist"
+compatibility_date = "2026-05-01"
+
+# Contenido de la página, mensajes, sesiones y fotos subidas desde el panel.
+# En local el id puede ser cualquier texto; al publicar va el id real de `wrangler kv namespace create DATA`.
+[[kv_namespaces]]
+binding = "DATA"
+id = "525772c195964b2888ac60712a18be73"
