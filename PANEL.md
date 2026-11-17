@@ -53,7 +53,7 @@ npm run dev
 
 Ya está hecho (13/11/2026): KV creado, secretos `ADMIN_PASSWORD`, `SESSION_SECRET` y `PANEL_RUTA` cargados en el proyecto `mundograf`.
 
-- Para actualizar el código: `git push` a `main` (lo publica GitHub Actions) o `npm run deploy` desde esta carpeta.
+- Para actualizar el código: `npm run deploy` desde esta carpeta (hace falta la sesión de wrangler en la cuenta de Máximo). El push a GitHub no publica: la publicación automática se sacó el 17/11/2026 porque nunca funcionó (al repositorio le faltaba el token de Cloudflare).
 - Volver a publicar código no toca lo que el cliente cargó desde el panel.
 - Cambiar la dirección del panel: `npx wrangler pages secret put PANEL_RUTA --project-name mundograf` y volver a publicar.
 - Si se filtra la contraseña: el cliente la cambia desde el panel, o se pisa con `npx wrangler pages secret put ADMIN_PASSWORD` (solo vale si nunca la cambió desde el panel). Cambiar `SESSION_SECRET` cierra todas las sesiones.

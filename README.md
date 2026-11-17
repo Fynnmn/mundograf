@@ -9,4 +9,4 @@ Página de **Mundograf**, imprenta y estudio de diseño gráfico (Fray Bentos y 
 
 Cómo funciona el panel, cómo probarlo y cómo publicarlo: [PANEL.md](PANEL.md).
 
-Deploy: cada `git push` a `main` publica en Cloudflare Pages (proyecto `mundograf`) con GitHub Actions.
+Publicar cambios de código: `npm run deploy` desde esta carpeta (arma `dist/` y lo sube a Cloudflare Pages, proyecto `mundograf`). Hacer push a GitHub no publica nada: el repositorio es solo el respaldo del código.
