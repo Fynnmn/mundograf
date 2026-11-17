@@ -1,27 +1,21 @@
 // API de la página y del panel. Rutas:
 //   POST /api/mensaje                       público: formulario de contacto de la página
-//   GET  /api/sesion                        ¿hay sesión? ¿hay llaves de acceso?
-//   POST /api/login  {password, app}        entra con contraseña
-//   POST /api/passkey/reto                  reto para entrar con llave de acceso
-//   POST /api/passkey/entrar                entra con llave de acceso (Face ID, Touch ID, huella)
-//   POST /api/logout
+//   GET  /api/sesion                        ¿este dispositivo está recordado?
+//   POST /api/entrar {clave, app}           entra con el link secreto (…/#clave=…), sin contraseña
+//   POST /api/logout                        "Salir": este dispositivo deja de estar recordado
 //   GET  /api/admin/contenido               lo publicado + resumen del historial
-//   PUT  /api/admin/contenido {contenido, base}   publica (base = versión sobre la que se editó)
+//   PUT  /api/admin/contenido {contenido}   guarda (cada cambio se publica al instante)
 //   GET  /api/admin/historial/:id           una versión anterior completa
 //   POST /api/admin/fotos                   sube una imagen (cuerpo crudo) y devuelve su URL
 //   GET  /api/admin/mensajes                mensajes del formulario
 //   PATCH /api/admin/mensajes/:id {leido}   DELETE /api/admin/mensajes/:id
-//   GET  /api/admin/seguridad               sesiones, llaves y actividad
-//   PUT  /api/admin/clave {actual, nueva}
-//   DELETE /api/admin/sesiones/:id          ("otras" = todas menos esta)
-//   POST /api/admin/passkeys/reto · POST /api/admin/passkeys · DELETE /api/admin/passkeys/:id
+//   GET  /api/admin/seguridad               dispositivos recordados y actividad
+//   DELETE /api/admin/sesiones/:id          olvida un dispositivo ("otras" = todos menos este)
 import {
-  json, error, passwordOk, crearSesion, cerrarSesion, sesion,
+  json, error, linkOk, crearSesion, cerrarSesion, sesion,
   leerContenido, publicarContenido, leerHistorial, limpiarContenido, mediaKeys,
-  guardarPassword, passwordCambiada, listarSesiones, borrarSesion, registrar, leerActividad,
-  nuevoReto, retoValido,
+  listarSesiones, borrarSesion, registrar, leerActividad,
 } from '../../lib/core.js';
-import { rpId, leerLlaves, guardarLlaves, verificarRegistro, verificarIngreso } from '../../lib/webauthn.js';
 
 const MAX_FOTO = 8 * 1024 * 1024;
 const TIPOS_FOTO = { 'image/webp': 'webp', 'image/png': 'png', 'image/jpeg': 'jpg' };
@@ -39,13 +33,8 @@ export async function onRequest({ request, env, params }) {
       if (request.headers.get('X-Mundograf') !== '1' || (origin && origin !== new URL(request.url).origin)) return error(403, 'Pedido no permitido.');
     }
     if (ruta === 'mensaje' && metodo === 'POST') return recibirMensaje(request, env);
-    if (ruta === 'sesion' && metodo === 'GET') {
-      const s = await sesion(env, request);
-      return json({ admin: !!s, llaves: (await leerLlaves(env)).length > 0 });
-    }
-    if (ruta === 'login' && metodo === 'POST') return login(request, env);
-    if (ruta === 'passkey/reto' && metodo === 'POST') return json({ reto: await nuevoReto(env, 'get'), rpId: rpId(request) });
-    if (ruta === 'passkey/entrar' && metodo === 'POST') return entrarConLlave(request, env);
+    if (ruta === 'sesion' && metodo === 'GET') return json({ admin: !!(await sesion(env, request)) });
+    if (ruta === 'entrar' && metodo === 'POST') return entrar(request, env);
     if (ruta === 'logout' && metodo === 'POST') {
       const s = await sesion(env, request);
       if (s) await borrarSesion(env, s.id);
@@ -113,41 +102,19 @@ async function limites(request, env) {
   };
 }
 
-async function login(request, env) {
+async function entrar(request, env) {
   const lim = await limites(request, env);
   if (lim.bloqueadoIp) return error(429, 'Demasiados intentos. Esperá 15 minutos y probá de nuevo.');
-  if (lim.bloqueadoTotal) {
-    return error(429, (await leerLlaves(env)).length
-      ? 'Por seguridad, el ingreso con contraseña está pausado una hora. Podés entrar con Face ID o tu huella.'
-      : 'Por seguridad, el ingreso con contraseña está pausado una hora.');
-  }
-  const { password, app } = await request.json().catch(() => ({}));
-  if (!(await passwordOk(env, password))) {
+  if (lim.bloqueadoTotal) return error(429, 'Por seguridad, el ingreso está pausado una hora.');
+  const { clave, app } = await request.json().catch(() => ({}));
+  if (!(await linkOk(env, clave))) {
     await lim.fallo();
     await registrar(env, request, 'fallido');
-    return error(401, 'La contraseña no es correcta.');
+    return error(401, 'Este link del panel ya no es válido. Pedile el link nuevo a quien armó la página.');
   }
   await lim.limpiar();
-  await registrar(env, request, 'ingreso', { app, detalle: 'Con contraseña' });
-  const nueva = await crearSesion(env, request, { metodo: 'clave', app: !!app });
-  return conCookies(json({ ok: true }), [nueva.cookie]);
-}
-
-async function entrarConLlave(request, env) {
-  const lim = await limites(request, env);
-  if (lim.bloqueadoIp) return error(429, 'Demasiados intentos. Esperá 15 minutos y probá de nuevo.');
-  const cuerpo = await request.json().catch(() => ({}));
-  const llaves = await leerLlaves(env);
-  let usada;
-  try {
-    usada = await verificarIngreso(request, cuerpo, llaves, ch => retoValido(env, ch, 'get'));
-  } catch (e) {
-    await lim.fallo();
-    return error(401, e.message || 'No se pudo verificar la llave de acceso.');
-  }
-  await guardarLlaves(env, llaves.map(k => (k.id === usada.id ? usada : k)));
-  await registrar(env, request, 'ingreso', { app: cuerpo.app, detalle: `Con ${usada.nombre}` });
-  const nueva = await crearSesion(env, request, { metodo: 'llave', app: !!cuerpo.app });
+  await registrar(env, request, 'ingreso', { app, detalle: 'Con el link' });
+  const nueva = await crearSesion(env, request, { metodo: 'link', app: !!app });
   return conCookies(json({ ok: true }), [nueva.cookie]);
 }
 
@@ -185,17 +152,15 @@ async function admin(ruta, metodo, request, env, ses) {
     const body = await request.json().catch(() => null);
     if (!body?.contenido) return error(400, 'No llegó el contenido.');
     const previo = await leerContenido(env, request);
-    // Si alguien publicó desde otro dispositivo mientras se editaba, se avisa en vez de pisarlo
-    if (!body.forzar && body.base != null && Number(body.base) !== (previo.version || 0)) {
-      return json({ error: 'Mientras editabas se publicó otra versión desde otro dispositivo.', conflicto: true, publicado: previo.publicado, disp: previo.disp }, 409);
-    }
     const { contenido, faltan } = limpiarContenido(body.contenido);
-    if (faltan.length) return error(400, `Falta completar ${faltan.join(' y ')}.`);
-    const nuevo = await publicarContenido(env, contenido, previo, request);
+    if (faltan.length) return error(400, `Para guardar, falta completar ${faltan.join(' y ')}.`);
+    const { contenido: nuevo, copia } = await publicarContenido(env, contenido, previo, request);
     const historial = await leerHistorial(env);
-    const enUso = new Set([...mediaKeys(nuevo), ...mediaKeys(historial)]);
-    await limpiarHuerfanas(env, enUso).catch(e => console.error(e));
-    return json({ contenido: nuevo, historial: resumenHistorial(historial) });
+    if (copia) {
+      const enUso = new Set([...mediaKeys(nuevo), ...mediaKeys(historial)]);
+      await limpiarHuerfanas(env, enUso).catch(e => console.error(e));
+    }
+    return json({ version: nuevo.version, publicado: nuevo.publicado, historial: resumenHistorial(historial) });
   }
 
   const mVer = ruta.match(/^historial\/([\w-]{1,60})$/);
@@ -242,70 +207,20 @@ function esImagen(b, tipo) {
   return false;
 }
 
-/* ---------- Seguridad: contraseña, sesiones y llaves de acceso ---------- */
+/* ---------- Dispositivos recordados ---------- */
 
 async function seguridad(ruta, metodo, request, env, ses) {
   if (ruta === 'seguridad' && metodo === 'GET') {
-    const [sesiones, llaves, actividad, cambiada] = await Promise.all([listarSesiones(env), leerLlaves(env), leerActividad(env), passwordCambiada(env)]);
-    return json({
-      sesiones: sesiones.map(({ id, ...s }) => ({ ...s, id, actual: id === ses.id })),
-      llaves: llaves.map(({ id, nombre, creada, usada }) => ({ id, nombre, creada, usada })),
-      actividad,
-      claveCambiada: cambiada,
-    });
+    const [sesiones, actividad] = await Promise.all([listarSesiones(env), leerActividad(env)]);
+    return json({ sesiones: sesiones.map(({ id, ...s }) => ({ ...s, id, actual: id === ses.id })), actividad });
   }
-
-  if (ruta === 'clave' && metodo === 'PUT') {
-    const { actual, nueva } = await request.json().catch(() => ({}));
-    const lim = await limites(request, env);
-    if (lim.bloqueadoIp) return error(429, 'Demasiados intentos. Esperá 15 minutos y probá de nuevo.');
-    if (!(await passwordOk(env, actual))) { await lim.fallo(); return error(400, 'La contraseña actual no es correcta.'); }
-    const n = String(nueva || '');
-    if (n.length < 10) return error(400, 'La nueva contraseña tiene que tener al menos 10 caracteres.');
-    if (n.length > 200) return error(400, 'La contraseña es demasiado larga.');
-    if (n === actual) return error(400, 'La nueva contraseña tiene que ser distinta de la actual.');
-    await guardarPassword(env, n);
-    // Se cierran las demás sesiones: si alguien sabía la contraseña vieja, queda afuera
-    const otras = (await listarSesiones(env)).filter(s => s.id !== ses.id);
-    await Promise.all(otras.map(s => borrarSesion(env, s.id)));
-    await registrar(env, request, 'clave');
-    return json({ ok: true, cerradas: otras.length });
-  }
-
   const mSes = ruta.match(/^sesiones\/([\w-]{1,64})$/);
   if (mSes && metodo === 'DELETE') {
     const todas = await listarSesiones(env);
     const cerrar = mSes[1] === 'otras' ? todas.filter(s => s.id !== ses.id) : todas.filter(s => s.id === mSes[1]);
     await Promise.all(cerrar.map(s => borrarSesion(env, s.id)));
-    if (cerrar.length) await registrar(env, request, 'sesiones', { detalle: cerrar.length === 1 ? cerrar[0].disp : `${cerrar.length} sesiones` });
+    if (cerrar.length) await registrar(env, request, 'sesiones', { detalle: cerrar.length === 1 ? cerrar[0].disp : `${cerrar.length} dispositivos` });
     return json({ ok: true, cerradas: cerrar.length, actual: cerrar.some(s => s.id === ses.id) });
-  }
-
-  if (ruta === 'passkeys/reto' && metodo === 'POST') {
-    const llaves = await leerLlaves(env);
-    return json({ reto: await nuevoReto(env, 'create'), rpId: rpId(request), excluir: llaves.map(k => k.id) });
-  }
-  if (ruta === 'passkeys' && metodo === 'POST') {
-    const cuerpo = await request.json().catch(() => ({}));
-    const llaves = await leerLlaves(env);
-    if (llaves.length >= 10) return error(400, 'Ya hay 10 dispositivos con acceso rápido. Sacá alguno que no uses.');
-    let nueva;
-    try { nueva = await verificarRegistro(request, cuerpo, ch => retoValido(env, ch, 'create')); } catch (e) { return error(400, e.message); }
-    if (llaves.some(k => k.id === nueva.id)) return error(400, 'Este dispositivo ya tiene acceso rápido.');
-    const nombre = String(cuerpo.nombre || '').trim().slice(0, 40) || 'Este dispositivo';
-    llaves.push({ ...nueva, nombre, creada: Date.now(), usada: null });
-    await guardarLlaves(env, llaves);
-    await registrar(env, request, 'llave+', { detalle: nombre });
-    return json({ ok: true });
-  }
-  const mLlave = ruta.match(/^passkeys\/([\w-]{1,512})$/);
-  if (mLlave && metodo === 'DELETE') {
-    const llaves = await leerLlaves(env);
-    const k = llaves.find(x => x.id === mLlave[1]);
-    if (!k) return error(404, 'Ese acceso ya no existe.');
-    await guardarLlaves(env, llaves.filter(x => x.id !== k.id));
-    await registrar(env, request, 'llave-', { detalle: k.nombre });
-    return json({ ok: true });
   }
   return null;
 }

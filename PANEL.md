@@ -1,8 +1,13 @@
 # Panel de Mundograf
 
-El cliente entra al panel con su contraseña y cambia la página sin depender de nadie. Hecho el 12/11/2026, publicado el 13/11/2026.
+El cliente edita la página sin depender de nadie. Hecho el 12/11/2026; el 17/11/2026 pasó a funcionar como el panel del librillo del campeonato.
 
-**La dirección del panel es secreta.** No está en el código (el repositorio de GitHub es público): es el secreto `PANEL_RUTA` de Cloudflare. La dirección y la contraseña inicial están en `CREDENCIALES-PANEL.txt`, que no se sube. `/admin/` responde "no encontrado", la página no tiene ningún link al panel y Google no lo indexa.
+- **Se entra con un link secreto, sin contraseña:** `https://mundograf.com.uy/<ruta>/#clave=<clave>`. Está en `CREDENCIALES-PANEL.txt`, que no se sube. Se abre una vez y ese celular o compu queda recordado; "Olvidar este dispositivo" (en Cuenta) lo saca.
+- La ruta es el secreto `PANEL_RUTA` y de la clave Cloudflare guarda solo la huella SHA-256 (`PANEL_CLAVE_HUELLA`). Ninguna de las dos está en el código, que es público. `/admin/` responde "no encontrado", la página no tiene ningún link al panel y Google no lo indexa.
+- **Todo se guarda solo,** como en el librillo: arriba dice "Guardando…" y después "Todo guardado". No hay botón Publicar: el cambio ya está en la página.
+- **Deshacer:** la flechita ↶ o Ctrl+Z (fuera de un campo) vuelve atrás, paso por paso.
+- **Escribir sobre la página:** en la vista previa se toca cualquier texto y se escribe encima. Tocar una foto abre su ficha.
+- Si se corta internet, los cambios quedan en el dispositivo y se guardan solos cuando vuelve.
 
 ## Qué puede cambiar
 
@@ -16,14 +21,13 @@ El cliente entra al panel con su contraseña y cambia la página sin depender de
 | Teléfono, email y redes | WhatsApp (con botón para probarlo), mensaje que viene escrito, email, Instagram, Facebook y ciudades. Cambian en todos los lugares de una vez |
 | Cómo aparece en Google | Título y descripción, con una muestra de cómo se ve el resultado |
 | Mensajes | Lo que llega por el formulario de contacto (antes el formulario no mandaba nada) |
-| Versiones anteriores | Las últimas 15 publicaciones; cualquiera se puede cargar y volver a publicar |
-| Cuenta y seguridad | Contraseña, Face ID / huella / Windows Hello, dónde está abierto el panel, actividad |
+| Versiones anteriores | Una copia de la página cada 20 minutos de cambios (se guardan las últimas 15); se vuelve a cualquiera con un toque |
+| Cuenta y seguridad | Dónde está abierto el panel (y olvidar dispositivos), actividad |
 
 ## Cómo trabaja
 
-- Todo lo que se toca queda como **borrador** en el dispositivo (si se cierra la pestaña, sigue ahí). La página no cambia hasta tocar **Publicar**. **Descartar** vuelve a lo publicado.
 - **Vista previa en vivo** al lado (en la computadora) o en una hoja que sube (en el celular), en tamaño computadora o celular. La arma el mismo código que la página, así que es exactamente lo que se va a ver.
-- Si dos personas publican desde dispositivos distintos, el panel avisa en vez de pisar.
+- Al volver a la pestaña se trae lo último, por si se editó desde otro dispositivo.
 - Se instala como app en el celular (ícono del globo).
 
 ## Técnica
@@ -32,7 +36,7 @@ El cliente entra al panel con su contraseña y cambia la página sin depender de
 - Los archivos del panel se arman en `dist/admin/`, pero solo se sirven por la dirección secreta: lo hace `functions/[[path]].js`, que también devuelve 404 en `/admin/`.
 - `plantilla.html` es la página con marcadores (`{{...}}`). `lib/render.js` la arma: lo usa `build.mjs` (versión estática de respaldo en `dist/index.html`) y `functions/index.js` (la portada real, con el contenido publicado, escrita en el HTML para Google).
 - `functions/vista-previa.js` arma la página con el borrador, solo con sesión de administrador. No guarda nada.
-- `functions/api/[[path]].js`: API del panel y del formulario. Sesiones firmadas con HMAC, cookie `__Host-` HttpOnly SameSite=Strict, límite de intentos, encabezado propio obligatorio para escribir, contraseña cambiable (PBKDF2), llaves de acceso (WebAuthn).
+- `functions/api/[[path]].js`: API del panel y del formulario. Sesiones firmadas con HMAC, cookie `__Host-` HttpOnly SameSite=Strict, límite de intentos, encabezado propio obligatorio para escribir, ingreso por link (se compara la huella de la clave).
 - Galería: las filas las arma el servidor según el formato de cada foto, así ninguna se recorta y todas las de una fila tienen la misma altura.
 - Las fotos que ya no usa ninguna versión se borran solas al publicar (las subidas que nunca se publicaron, a los 3 días).
 
@@ -46,14 +50,14 @@ npm install
 npm run dev
 ```
 
-- Página: http://127.0.0.1:8796 · Panel: http://127.0.0.1:8796/estudio-prueba/ (la ruta y la contraseña de prueba están en `.dev.vars`)
+- Página: http://127.0.0.1:8796 · Panel: http://127.0.0.1:8796/estudio-prueba/#clave=… (la clave de prueba está en `.dev.vars`)
 - Prueba automática del panel (con el servidor andando): `node pruebas/e2e-panel.cjs http://localhost:8796`
 
 ## Publicar
 
-Ya está hecho (13/11/2026): KV creado, secretos `ADMIN_PASSWORD`, `SESSION_SECRET` y `PANEL_RUTA` cargados en el proyecto `mundograf`.
+Ya está hecho: KV creado, secretos `SESSION_SECRET`, `PANEL_RUTA` y `PANEL_CLAVE_HUELLA` cargados en el proyecto `mundograf`.
 
 - Para actualizar el código: `npm run deploy` desde esta carpeta (hace falta la sesión de wrangler en la cuenta de Máximo). El push a GitHub no publica: la publicación automática se sacó el 17/11/2026 porque nunca funcionó (al repositorio le faltaba el token de Cloudflare).
 - Volver a publicar código no toca lo que el cliente cargó desde el panel.
 - Cambiar la dirección del panel: `npx wrangler pages secret put PANEL_RUTA --project-name mundograf` y volver a publicar.
-- Si se filtra la contraseña: el cliente la cambia desde el panel, o se pisa con `npx wrangler pages secret put ADMIN_PASSWORD` (solo vale si nunca la cambió desde el panel). Cambiar `SESSION_SECRET` cierra todas las sesiones.
+- Si el link se filtra: los pasos están en `CREDENCIALES-PANEL.txt` (clave nueva, cargar su huella en `PANEL_CLAVE_HUELLA` y volver a publicar). Cambiar `SESSION_SECRET` además olvida todos los dispositivos recordados.

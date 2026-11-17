@@ -746,6 +746,15 @@
   }
   .reveal.in { opacity: 1; transform: translateY(0); }
   [data-vista-previa] .reveal { opacity: 1; transform: none; transition: none; }
+  /* Vista previa del panel: los textos se editan escribiendo encima, como en Canva */
+  [data-vista-previa] [data-c] { border-radius: 4px; outline: 1.5px dashed transparent; outline-offset: 3px; cursor: text; transition: outline-color .15s; }
+  [data-vista-previa] [data-c]:hover { outline-color: rgba(110, 181, 255, .9); }
+  [data-vista-previa] [data-c]:focus { outline: 2px solid #6EB5FF; outline-offset: 3px; }
+  [data-vista-previa] [data-c]:empty::before { content: "Escribí acá"; opacity: .45; font-style: italic; }
+  [data-vista-previa] .ph-label:has([data-c]:empty) { opacity: .7; }
+  [data-vista-previa] .portfolio-item { cursor: pointer; }
+  [data-vista-previa] .portfolio-item:hover img { filter: brightness(.92); }
+  [data-vista-previa] .portfolio-item .ph-label { pointer-events: auto; }
 
   @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; scroll-behavior: auto !important; }

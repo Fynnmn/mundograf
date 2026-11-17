@@ -25,27 +25,12 @@
 
 <!-- Ingreso -->
 <div class="ingreso" id="ingreso" hidden>
-  <form class="ingreso__caja" id="form-ingreso" novalidate>
+  <div class="ingreso__caja">
     <svg class="ingreso__globo" viewBox="690 427 140 129" aria-hidden="true"><use href="#mg-logo"/></svg>
     <h1 class="ingreso__titulo">Panel de Mundograf</h1>
-    <p class="ingreso__texto">Desde acá cambiás los textos, las fotos y los datos de mundograf.com.uy.</p>
-
-    <button type="button" class="boton boton--lleno boton--ancho" id="entrar-llave" hidden>
-      <span data-metodo>Entrar con Face ID</span>
-    </button>
-    <div class="ingreso__o" id="ingreso-o" hidden><span>o con tu contraseña</span></div>
-
-    <label class="campo">
-      <span class="campo__etiqueta">Contraseña</span>
-      <span class="clave">
-        <input class="campo__control" type="password" name="password" id="password" autocomplete="current-password" required>
-        <button type="button" class="clave__ver" data-ver-clave aria-label="Mostrar contraseña" aria-pressed="false">Mostrar</button>
-      </span>
-    </label>
-    <p class="ingreso__error" id="ingreso-error" role="alert" hidden></p>
-    <button type="submit" class="boton boton--marca boton--ancho" id="entrar">Entrar</button>
+    <p class="ingreso__texto" id="ingreso-texto" role="status"></p>
     <a class="ingreso__volver" href="/">Ir a la página</a>
-  </form>
+  </div>
 </div>
 
 <!-- Panel -->
@@ -54,6 +39,10 @@
     <a class="riel__marca" href="#/" aria-label="Inicio del panel">
       <svg viewBox="240 420 960 130" role="img" aria-label="Mundograf"><use href="#mg-logo"/></svg>
     </a>
+    <div class="riel__estado">
+      <span class="estado" data-estado role="status">Todo guardado</span>
+      <button type="button" class="icono-boton" data-deshacer disabled aria-label="Deshacer" title="Deshacer (Ctrl+Z)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 5 4 8.5 7.5 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.5 8.5h7a4.5 4.5 0 0 1 0 9H9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+    </div>
     <nav class="riel__nav" id="nav"></nav>
     <div class="riel__pie">
       <a class="riel__ver" href="/" target="_blank" rel="noopener">
@@ -70,6 +59,7 @@
         <span>Secciones</span>
       </a>
       <span class="editor__barra-titulo" id="barra-titulo"></span>
+      <button type="button" class="icono-boton editor__deshacer" data-deshacer disabled aria-label="Deshacer" title="Deshacer (Ctrl+Z)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 5 4 8.5 7.5 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.5 8.5h7a4.5 4.5 0 0 1 0 9H9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
     </header>
     <div class="editor__cuerpo" id="vista" tabindex="-1"></div>
   </main>
@@ -94,16 +84,9 @@
     </div>
   </section>
 
-  <div class="publicar" id="publicar" data-estado="limpio">
-    <div class="publicar__texto">
-      <strong id="publicar-titulo">Todo publicado</strong>
-      <span id="publicar-detalle"></span>
-    </div>
-    <div class="publicar__acciones">
-      <button type="button" class="boton boton--claro publicar__ver" id="ver-previa">Vista previa</button>
-      <button type="button" class="boton boton--claro" id="descartar">Descartar</button>
-      <button type="button" class="boton boton--marca" id="publicar-btn">Publicar</button>
-    </div>
+  <div class="publicar" id="publicar">
+    <span class="estado" data-estado role="status">Todo guardado</span>
+    <button type="button" class="boton boton--marca" id="ver-previa">Ver cómo queda</button>
   </div>
 </div>
 

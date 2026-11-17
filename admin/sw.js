@@ -2,11 +2,11 @@
 // sin señal, muestra la última versión guardada (los cambios quedan en el dispositivo hasta publicar).
 // El código se pide siempre primero a la red, así una actualización se ve enseguida.
 // Los datos (/api) y la vista previa nunca se guardan.
-const VERSION = 'mg-panel-v1';
+const VERSION = 'mg-panel-v2';
 const FOTOS = 'mg-fotos-v1';
 // El panel puede vivir en cualquier dirección: todo se arma a partir de donde está este archivo
 const RAIZ = new URL('./', self.location).pathname;
-const BASE = ['', 'admin.css', 'admin.js', 'iconos.js', 'ordenar.js', 'imagenes.js', 'llaves.js', 'manifest.webmanifest', 'iconos/icono-192.png']
+const BASE = ['', 'admin.css', 'admin.js', 'iconos.js', 'ordenar.js', 'imagenes.js', 'manifest.webmanifest', 'iconos/icono-192.png']
   .map(f => RAIZ + f).concat('/favicon.svg');
 
 self.addEventListener('install', e => {

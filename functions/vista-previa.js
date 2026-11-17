@@ -16,13 +16,14 @@ export async function onRequestPost({ request, env }) {
   const form = await request.formData();
   let borrador;
   try { borrador = JSON.parse(String(form.get('contenido') || '')); } catch { return texto(400, 'Borrador ilegible.'); }
-  const { contenido } = limpiarContenido(borrador);
+  const { contenido } = limpiarContenido(borrador, { vista: true });
   const scroll = Math.max(0, Math.min(200000, Math.round(Number(form.get('scroll')) || 0)));
   const ir = /^[a-z-]{1,30}$/.test(form.get('ir') || '') ? form.get('ir') : '';
 
   const html = renderPagina(plantilla, contenido, {
     origen: url.origin,
     robots: 'noindex, nofollow',
+    editable: true,
     htmlAttr: ` data-vista-previa data-scroll="${scroll}" data-ir="${ir}"`,
     extraBody: '\n<script src="/js/vista-previa.js"></script>',
   });

@@ -1,9 +1,9 @@
-// Panel de Mundograf: editar la página, ver el cambio en vivo y publicarlo.
-// Todo lo que se toca queda como borrador en este dispositivo hasta tocar "Publicar".
+// Panel de Mundograf, como el del librillo: se entra con un link secreto (sin contraseña),
+// cada cambio se guarda solo ("Guardando…" / "Todo guardado"), se deshace con ↶ o Ctrl+Z
+// y los textos se pueden escribir directo sobre la página, en la vista previa.
 import { ICONOS, icono } from './iconos.js';
 import { ordenable, mover } from './ordenar.js';
 import { prepararFoto } from './imagenes.js';
-import { soportaLlaves, hayBiometria, nombreMetodo, nombreDispositivo, cancelado, crearLlave, usarLlave } from './llaves.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -45,15 +45,15 @@ const GRUPOS = [
 /* ---------- Estado ---------- */
 
 const S = {
-  publicado: null,   // lo que está en la página ahora
-  borrador: null,    // lo que se está editando
-  base: 0,           // versión publicada sobre la que se edita
+  borrador: null,      // el contenido que se edita (y que se guarda solo)
+  guardado: '',        // el último contenido que confirmó el servidor (JSON)
+  guardadoEn: null,    // cuándo
   historial: [],
   sinLeer: 0,
   ruta: '',
   abiertos: new Set(), // filas desplegadas en las listas
 };
-const CLAVE_BORRADOR = 'mg-borrador-v1';
+const RESPALDO = 'mg-respaldo-v2'; // copia local si se corta internet antes de guardar
 const CLAVES_CONTENIDO = ['negocio', 'portada', 'servicios', 'porque', 'trabajos', 'contacto', 'pie', 'seo'];
 const soloContenido = c => Object.fromEntries(CLAVES_CONTENIDO.map(k => [k, clonar(c[k])]));
 
@@ -69,10 +69,12 @@ async function api(metodo, ruta, body) {
       credentials: 'same-origin',
     });
   } catch {
-    throw new Error(navigator.onLine ? 'No se pudo conectar. Probá de nuevo.' : 'Estás sin conexión. Los cambios quedan guardados en este dispositivo.');
+    const e = new Error(navigator.onLine ? 'No se pudo conectar. Probá de nuevo.' : 'Estás sin conexión.');
+    e.red = true;
+    throw e;
   }
   const data = await res.json().catch(() => ({}));
-  if (res.status === 401 && ruta.startsWith('admin/')) { mostrarIngreso('Tu sesión venció. Volvé a entrar: tus cambios siguen guardados.'); throw new Error(data.error); }
+  if (res.status === 401 && ruta.startsWith('admin/')) { mostrarIngreso('Este dispositivo dejó de estar recordado. Volvé a abrir el link del panel.'); throw new Error(data.error); }
   if (!res.ok) { const e = new Error(data.error || 'Algo salió mal.'); e.status = res.status; e.data = data; throw e; }
   return data;
 }
@@ -87,7 +89,7 @@ function subirFoto(blob, onProgreso) {
     xhr.onload = () => {
       let d = {};
       try { d = JSON.parse(xhr.responseText); } catch {}
-      if (xhr.status === 401) mostrarIngreso('Tu sesión venció. Volvé a entrar.');
+      if (xhr.status === 401) mostrarIngreso('Este dispositivo dejó de estar recordado. Volvé a abrir el link del panel.');
       xhr.status < 300 ? resolve(d.url) : reject(new Error(d.error || 'No se pudo subir la foto.'));
     };
     xhr.onerror = () => reject(new Error('Se cortó la conexión mientras subía la foto.'));
@@ -184,90 +186,33 @@ function hace(t) {
   return fmtFecha(t);
 }
 
-/* ---------- Ingreso ---------- */
+/* ---------- Ingreso: link secreto ---------- */
 
+// El link es …/#clave=…: lo que va después del # no viaja en las visitas ni queda en registros.
+// Se abre una vez y este dispositivo queda recordado. "Olvidar este dispositivo" (en Cuenta) lo saca.
 function mostrarIngreso(msg) {
   $('#app').hidden = true;
   $('#ingreso').hidden = false;
-  const err = $('#ingreso-error');
-  err.hidden = !msg;
-  err.textContent = msg || '';
-  prepararLlaveIngreso();
-  setTimeout(() => $('#password').focus(), 50);
+  $('#ingreso-texto').textContent = msg || 'Para entrar, abrí el link del panel que te pasaron. Ese link es la llave: no hace falta contraseña.';
 }
 
-async function prepararLlaveIngreso() {
-  let llaves = false;
-  try { llaves = (await fetch('/api/sesion').then(r => r.json())).llaves; } catch {}
-  const mostrar = llaves && await hayBiometria();
-  $('#entrar-llave').hidden = !mostrar;
-  $('#ingreso-o').hidden = !mostrar;
-  $('[data-metodo]').textContent = `Entrar con ${nombreMetodo}`;
-}
-
-$('[data-ver-clave]').addEventListener('click', e => {
-  const input = $('#password');
-  const ver = input.type === 'password';
-  input.type = ver ? 'text' : 'password';
-  e.currentTarget.textContent = ver ? 'Ocultar' : 'Mostrar';
-  e.currentTarget.setAttribute('aria-pressed', String(ver));
-});
-
-$('#form-ingreso').addEventListener('submit', async e => {
-  e.preventDefault();
-  const boton = $('#entrar');
-  const pw = $('#password').value;
-  if (!pw) { $('#password').focus(); return; }
-  boton.disabled = true; boton.textContent = 'Entrando…';
-  try {
-    await api('POST', 'login', { password: pw, app: esApp() });
-    $('#password').value = '';
-    await arrancar();
-    ofrecerAccesoRapido();
-  } catch (err) {
-    const caja = $('#ingreso');
-    caja.classList.remove('sacudir'); void caja.offsetWidth; caja.classList.add('sacudir');
-    $('#ingreso-error').textContent = err.message;
-    $('#ingreso-error').hidden = false;
-    $('#password').select();
-  } finally {
-    boton.disabled = false; boton.textContent = 'Entrar';
+async function inicio() {
+  const m = location.hash.match(/clave=([^&]+)/);
+  if (m) {
+    history.replaceState(null, '', location.pathname); // la clave no queda a la vista ni en el historial
+    try {
+      await api('POST', 'entrar', { clave: decodeURIComponent(m[1]), app: esApp() });
+    } catch (err) {
+      mostrarIngreso(err.message);
+      return;
+    }
   }
-});
-
-$('#entrar-llave').addEventListener('click', async () => {
   try {
-    const reto = await api('POST', 'passkey/reto');
-    const cred = await usarLlave(reto);
-    await api('POST', 'passkey/entrar', { ...cred, app: esApp() });
-    await arrancar();
-  } catch (err) {
-    if (cancelado(err)) return;
-    $('#ingreso-error').textContent = err.message || 'No se pudo entrar. Probá con la contraseña.';
-    $('#ingreso-error').hidden = false;
-  }
-});
-
-async function ofrecerAccesoRapido() {
-  if (!soportaLlaves() || !(await hayBiometria())) return;
-  try { if (localStorage.getItem('mg-llave-ofrecida')) return; localStorage.setItem('mg-llave-ofrecida', '1'); } catch {}
-  const si = await hoja({
-    titulo: `Entrar con ${nombreMetodo}`, chica: true,
-    cuerpo: `<p>La próxima vez entrás sin escribir la contraseña. Tu huella o tu cara no salen del dispositivo: Mundograf solo guarda una llave que no sirve en otro lado.</p>`,
-    pie: '<button type="button" class="boton boton--claro" data-valor="">Ahora no</button><button type="button" class="boton boton--marca" data-valor="si">Activar</button>',
-  }).promesa;
-  if (si === 'si') activarLlave();
-}
-
-async function activarLlave() {
-  try {
-    const reto = await api('POST', 'admin/passkeys/reto');
-    const cred = await crearLlave(reto);
-    await api('POST', 'admin/passkeys', { ...cred, nombre: nombreDispositivo() });
-    aviso(`Listo: la próxima vez entrás con ${nombreMetodo}.`);
-    if (S.ruta === 'cuenta') render();
-  } catch (err) {
-    if (!cancelado(err)) aviso(err.message, { error: true });
+    const s = await fetch('/api/sesion', { credentials: 'same-origin' }).then(r => r.json());
+    if (s.admin) await arrancar();
+    else mostrarIngreso();
+  } catch {
+    mostrarIngreso('No se pudo conectar. Revisá tu internet y volvé a abrir el link.');
   }
 }
 
@@ -275,136 +220,167 @@ async function activarLlave() {
 
 async function arrancar() {
   const d = await api('GET', 'admin/contenido');
-  S.publicado = d.contenido;
-  S.base = d.contenido.version || 0;
+  S.borrador = soloContenido(d.contenido);
+  S.guardado = JSON.stringify(S.borrador);
+  S.guardadoEn = d.contenido.publicado;
   S.historial = d.historial;
   S.sinLeer = d.sinLeer;
-  S.borrador = soloContenido(d.contenido);
 
-  // ¿Quedaron cambios sin publicar en este dispositivo?
-  let guardado = null;
-  try { guardado = JSON.parse(localStorage.getItem(CLAVE_BORRADOR) || 'null'); } catch {}
-  if (guardado?.contenido) {
-    S.borrador = { ...S.borrador, ...guardado.contenido };
+  // ¿Quedó algo sin guardar en este dispositivo (por ejemplo, se cortó internet)?
+  let respaldo = null;
+  try { respaldo = JSON.parse(localStorage.getItem(RESPALDO) || 'null'); } catch {}
+  if (respaldo?.contenido && JSON.stringify(respaldo.contenido) !== S.guardado) {
+    S.borrador = respaldo.contenido;
     S.borrador.trabajos.items = S.borrador.trabajos.items.filter(x => x.foto?.l); // fotos que no terminaron de subir
-    if (guardado.base !== S.base) S.base = guardado.base; // se avisa al publicar si alguien publicó en el medio
-    if (cambios().length) setTimeout(() => aviso('Seguís desde donde dejaste: tus cambios sin publicar están acá.'), 400);
+    setTimeout(() => aviso('Había cambios sin guardar en este dispositivo: ya los recuperé.'), 400);
+    programarGuardado(300);
   }
+  deshacer.ultimo = JSON.stringify(S.borrador);
 
   $('#ingreso').hidden = true;
   $('#app').hidden = false;
   pintarNav();
-  actualizarPublicar();
+  pintarEstado();
   irA(location.hash);
   prepararPrevia();
 }
 
-async function inicio() {
+// Al volver a la pestaña se trae lo último, por si se editó desde otro dispositivo
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState === 'hidden') { guardar(); return; }
+  if (!S.borrador || guardando.enCurso || JSON.stringify(S.borrador) !== S.guardado || escribiendoEnPrevia) return;
   try {
-    const s = await fetch('/api/sesion', { credentials: 'same-origin' }).then(r => r.json());
-    if (s.admin) await arrancar();
-    else mostrarIngreso();
-  } catch {
-    mostrarIngreso('No se pudo conectar. Revisá tu internet.');
+    const d = await api('GET', 'admin/contenido');
+    S.sinLeer = d.sinLeer;
+    S.historial = d.historial;
+    const nuevo = JSON.stringify(soloContenido(d.contenido));
+    if (nuevo !== S.guardado) {
+      S.borrador = JSON.parse(nuevo);
+      S.guardado = nuevo;
+      S.guardadoEn = d.contenido.publicado;
+      deshacer.ultimo = nuevo;
+      rehacerVista();
+      pedirPrevia({ ya: true });
+    }
+    pintarNav();
+    pintarEstado();
+  } catch {}
+});
+
+/* ---------- Guardado automático ---------- */
+
+const guardando = { timer: 0, enCurso: false, otraVez: false, error: '' };
+
+function programarGuardado(ms = 1200) {
+  clearTimeout(guardando.timer);
+  guardando.timer = setTimeout(guardar, ms);
+  pintarEstado();
+}
+
+async function guardar() {
+  clearTimeout(guardando.timer);
+  if (!S.borrador) return;
+  if (guardando.enCurso) { guardando.otraVez = true; return; }
+  const datos = JSON.stringify(S.borrador);
+  if (datos === S.guardado) { pintarEstado(); return; }
+  guardando.enCurso = true;
+  pintarEstado();
+  try {
+    const d = await api('PUT', 'admin/contenido', { contenido: S.borrador });
+    S.guardado = datos;
+    S.guardadoEn = d.publicado;
+    S.historial = d.historial;
+    guardando.error = '';
+    try { localStorage.removeItem(RESPALDO); } catch {}
+  } catch (err) {
+    // Queda una copia en el dispositivo y se reintenta solo
+    try { localStorage.setItem(RESPALDO, JSON.stringify({ contenido: S.borrador, t: Date.now() })); } catch {}
+    guardando.error = err.red ? 'red' : 'error';
+    if (!err.red && err.status !== 401) aviso(err.message, { error: true });
+  } finally {
+    guardando.enCurso = false;
+    if (guardando.otraVez) { guardando.otraVez = false; guardar(); return; }
+    if (guardando.error) guardando.timer = setTimeout(guardar, guardando.error === 'red' ? 5000 : 15000);
+    pintarEstado();
   }
 }
 
-/* ---------- Borrador y cambios ---------- */
-
-const corte = (c, claves) => JSON.stringify(claves.map(k => c?.[k] ?? null));
-function cambios() {
-  if (!S.publicado || !S.borrador) return [];
-  return Object.entries(SECCIONES).filter(([, s]) => s.claves && corte(S.borrador, s.claves) !== corte(S.publicado, s.claves)).map(([k]) => k);
-}
-
-let tGuardar = 0;
-function cambio({ previa = true } = {}) {
-  clearTimeout(tGuardar);
-  tGuardar = setTimeout(() => {
-    try {
-      if (cambios().length) localStorage.setItem(CLAVE_BORRADOR, JSON.stringify({ base: S.base, contenido: S.borrador, t: Date.now() }));
-      else localStorage.removeItem(CLAVE_BORRADOR);
-    } catch {}
-  }, 250);
-  actualizarPublicar();
-  pintarNav();
-  if (previa) pedirPrevia();
-}
-
-const listaNatural = arr => (arr.length < 2 ? arr.join('') : `${arr.slice(0, -1).join(', ')} y ${arr.at(-1)}`);
-
-function actualizarPublicar() {
-  const c = cambios();
-  const barra = $('#publicar');
-  if (barra.dataset.estado === 'publicando') return;
-  barra.dataset.estado = c.length ? 'cambios' : 'limpio';
-  $('#publicar-titulo').textContent = c.length ? 'Sin publicar' : 'Todo publicado';
-  $('#publicar-detalle').textContent = c.length
-    ? `Cambios en ${listaNatural(c.map(k => SECCIONES[k].nombre.toLowerCase().replace(/^por qué/, 'Por qué')))}`
-    : (S.publicado?.publicado ? `Última vez ${hace(S.publicado.publicado)}` : '');
-  $('#publicar-btn').disabled = !c.length;
+function pintarEstado() {
+  const pendiente = S.borrador && JSON.stringify(S.borrador) !== S.guardado;
+  let texto, clase;
+  if (guardando.error === 'red') { texto = 'Sin conexión: se guarda cuando vuelva'; clase = 'error'; }
+  else if (guardando.error) { texto = 'No se pudo guardar. Reintentando…'; clase = 'error'; }
+  else if (guardando.enCurso || pendiente) { texto = 'Guardando…'; clase = 'guardando'; }
+  else { texto = 'Todo guardado'; clase = 'ok'; }
+  $$('[data-estado]').forEach(el => { el.textContent = texto; el.className = `estado estado--${clase}`; el.title = !pendiente && S.guardadoEn ? `Guardado ${hace(S.guardadoEn)}` : ''; });
   if (previa.lista) estadoPrevia();
 }
 
-$('#descartar').addEventListener('click', async () => {
-  if (!(await confirmar('¿Descartar los cambios?', 'La página queda como está publicada ahora. Lo que cambiaste desde la última publicación se pierde.', 'Descartar cambios', true))) return;
-  S.borrador = soloContenido(S.publicado);
-  S.base = S.publicado.version || 0;
-  try { localStorage.removeItem(CLAVE_BORRADOR); } catch {}
-  cambio();
-  render();
-  aviso('Cambios descartados.');
+/* ---------- Deshacer (↶ o Ctrl+Z, como en el librillo) ---------- */
+
+// Antes de cada cambio se guarda cómo estaba todo. Lo que se escribe seguido en un mismo campo cuenta como un solo paso.
+const deshacer = { pila: [], ultimo: '', grupo: '', t: 0 };
+
+function apilar(grupo) {
+  const ahora = Date.now();
+  const mismo = grupo && grupo === deshacer.grupo && ahora - deshacer.t < 2000;
+  if (!mismo && deshacer.ultimo) {
+    deshacer.pila.push(deshacer.ultimo);
+    if (deshacer.pila.length > 60) deshacer.pila.shift();
+  }
+  deshacer.grupo = grupo;
+  deshacer.t = ahora;
+  deshacer.ultimo = JSON.stringify(S.borrador);
+  pintarDeshacer();
+}
+
+function pintarDeshacer() { $$('[data-deshacer]').forEach(b => { b.disabled = !deshacer.pila.length; }); }
+
+function hacerDeshacer() {
+  if (!deshacer.pila.length) { aviso('No hay nada para deshacer.'); return; }
+  const antes = deshacer.pila.pop();
+  S.borrador = JSON.parse(antes);
+  deshacer.ultimo = antes;
+  deshacer.grupo = '';
+  pintarDeshacer();
+  rehacerVista();
+  pintarNav();
+  programarGuardado(400);
+  pedirPrevia({ ya: true });
+  aviso('Cambio deshecho.');
+}
+$$('[data-deshacer]').forEach(b => b.addEventListener('click', hacerDeshacer));
+addEventListener('keydown', e => {
+  if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.key.toLowerCase() !== 'z' || !S.borrador || hojaAbierta) return;
+  if (e.target.closest?.('input, textarea, [contenteditable]')) return; // dentro de un campo, deshace el propio campo
+  e.preventDefault();
+  hacerDeshacer();
 });
 
-$('#publicar-btn').addEventListener('click', () => publicar(false));
+// Vuelve a pintar la sección abierta sin perder la posición (después de deshacer o de editar sobre la página)
+function rehacerVista() {
+  const cuerpo = $('#vista').parentElement;
+  const y = cuerpo.scrollTop;
+  render();
+  cuerpo.scrollTop = y;
+}
 
-async function publicar(forzar) {
-  const barra = $('#publicar');
-  const boton = $('#publicar-btn');
-  if (subidas.size) { aviso('Esperá a que terminen de subir las fotos.'); return; }
-  barra.dataset.estado = 'publicando';
-  boton.textContent = 'Publicando…';
-  try {
-    const d = await api('PUT', 'admin/contenido', { contenido: S.borrador, base: S.base, forzar });
-    S.publicado = d.contenido;
-    S.base = d.contenido.version;
-    S.historial = d.historial;
-    S.borrador = soloContenido(d.contenido);
-    try { localStorage.removeItem(CLAVE_BORRADOR); } catch {}
-    navigator.vibrate?.(12);
-    aviso('Publicado. Ya se ve en la página.', { link: { href: '/', texto: 'Abrir' } });
-    barra.dataset.estado = 'limpio';
-    // Los campos en pantalla pasan a apuntar a lo recién publicado (sin perder la posición)
-    const cuerpo = $('#vista').parentElement;
-    const y = cuerpo.scrollTop;
-    render();
-    cuerpo.scrollTop = y;
-  } catch (err) {
-    barra.dataset.estado = 'cambios';
-    if (err.status === 409) {
-      const si = await confirmar('Hay una versión más nueva',
-        `Mientras editabas se publicó otra versión${err.data?.disp ? ` desde ${err.data.disp}` : ''}${err.data?.publicado ? ` (${hace(err.data.publicado)})` : ''}. Si publicás, tus cambios la reemplazan. La otra queda en Versiones anteriores.`,
-        'Publicar los míos');
-      if (si) return publicar(true);
-    } else aviso(err.message, { error: true });
-  } finally {
-    boton.textContent = 'Publicar';
-    actualizarPublicar();
-    pintarNav();
-  }
+let nCampo = 0;
+function cambio({ previa = true, grupo = '' } = {}) {
+  apilar(grupo);
+  programarGuardado();
+  if (previa) pedirPrevia();
 }
 
 /* ---------- Navegación ---------- */
 
 function pintarNav() {
-  const c = new Set(cambios());
   $('#nav').innerHTML = GRUPOS.map(([titulo, claves]) => `
     <p class="riel__grupo">${esc(titulo)}</p>
     <div class="riel__bloque">${claves.map(k => `
       <a class="riel__item" href="#/${k}"${S.ruta.split('/')[0] === k ? ' aria-current="page"' : ''}>
         <span>${esc(SECCIONES[k].nombre)}</span>
         ${k === 'mensajes' && S.sinLeer ? `<span class="cuenta" aria-label="${S.sinLeer} sin leer">${S.sinLeer}</span>` : ''}
-        ${c.has(k) ? '<span class="punto" aria-label="con cambios sin publicar"></span>' : ''}
         ${SVG.chev.replace('class="chev"', 'class="flecha"')}
       </a>`).join('')}
     </div>`).join('');
@@ -421,9 +397,11 @@ function irA(hash) {
   pintarNav();
   render();
   const sec = SECCIONES[ruta.split('/')[0]];
-  if (sec?.ancla && antes !== ruta.split('/')[0]) pedirPrevia({ ir: sec.ancla, ya: true });
+  if (sec?.ancla && antes !== ruta.split('/')[0] && !irSinPrevia) pedirPrevia({ ir: sec.ancla, ya: true });
+  irSinPrevia = false;
 }
-addEventListener('hashchange', () => irA(location.hash));
+let irSinPrevia = false;
+addEventListener('hashchange', () => (/clave=/.test(location.hash) ? inicio() : irA(location.hash)));
 
 $('#vista').closest('.editor__cuerpo').addEventListener('scroll', e => {
   $('#barra').classList.toggle('con-borde', e.currentTarget.scrollTop > 40);
@@ -445,6 +423,7 @@ function campo({ obj, clave, etiqueta, tipo = 'linea', max, ayuda = '', placehol
     ${ayuda ? `<span class="campo__ayuda">${ayuda}</span>` : ''}`;
   const input = $('.campo__control', label);
   const cuenta = $('.campo__cuenta', label);
+  const grupo = `campo-${++nCampo}`;
   const contar = () => {
     if (!cuenta) return;
     const n = input.value.length;
@@ -462,7 +441,7 @@ function campo({ obj, clave, etiqueta, tipo = 'linea', max, ayuda = '', placehol
     obj[clave] = v;
     contar(); crecer();
     alCambiar?.(v);
-    if (!aparte) cambio();
+    if (!aparte) cambio({ grupo });
   });
   contar();
   requestAnimationFrame(crecer);
@@ -664,7 +643,7 @@ function vistaPorque() {
     const li = e.target.closest('.cifra');
     const c = w.cifras[li.dataset.i];
     if (e.target.classList.contains('valor')) c.valor = e.target.value; else c.etiqueta = e.target.value;
-    cambio();
+    cambio({ grupo: `cifra-${li.dataset.i}-${e.target.className}` });
   });
   cifras.addEventListener('click', e => {
     if (e.target.closest('.agregar')) { w.cifras.push({ valor: '', etiqueta: '' }); pintarCifras(); cambio(); $$('.cifra .valor', cifras).at(-1)?.focus(); }
@@ -996,140 +975,87 @@ async function vistaMensajes(id) {
 function vistaVersiones() {
   const lista = document.createElement('div');
   lista.className = 'grupo';
-  const actual = S.publicado;
   lista.innerHTML = `
-    <div class="item"><span class="item__cuerpo"><strong>La que está en la página</strong><span>Publicada ${esc(actual.publicado ? hace(actual.publicado) : '')}${actual.disp ? ` desde ${esc(actual.disp)}` : ''}</span></span></div>
+    <div class="item"><span class="item__cuerpo"><strong>Como está ahora</strong><span>Guardada ${esc(S.guardadoEn ? hace(S.guardadoEn) : '')}</span></span></div>
     ${S.historial.map(v => `
       <button type="button" class="item" data-v="${esc(v.id)}">
-        <span class="item__cuerpo"><strong>${esc(v.publicado ? fmtFecha(v.publicado) : `Versión ${v.version}`)}</strong><span>${v.disp ? `Desde ${esc(v.disp)}` : 'Versión inicial'}</span></span>
-        <span class="item__fin">Cargar</span>
+        <span class="item__cuerpo"><strong>${esc(v.publicado ? fmtFecha(v.publicado) : `Versión ${v.version}`)}</strong><span>${v.disp ? `Desde ${esc(v.disp)}` : 'Como estaba al principio'}</span></span>
+        <span class="item__fin">Volver a esta</span>
       </button>`).join('')}`;
   lista.addEventListener('click', async e => {
     const b = e.target.closest('[data-v]');
     if (!b) return;
     const meta = S.historial.find(v => v.id === b.dataset.v);
     const si = await confirmar('¿Volver a esta versión?',
-      `Se carga la página como estaba el ${meta.publicado ? fmtFecha(meta.publicado) : 'principio'}, como cambios sin publicar. La revisás en la vista previa y, si está bien, tocás Publicar.`,
-      'Cargar esta versión');
+      `La página vuelve a como estaba el ${meta.publicado ? fmtFecha(meta.publicado) : 'principio'}. Si no era lo que querías, tocá Deshacer.`,
+      'Volver a esta versión');
     if (!si) return;
     try {
       const v = await api('GET', `admin/historial/${meta.id}`);
       S.borrador = soloContenido(v.contenido);
-      cambio();
-      aviso('Versión cargada. Revisala en la vista previa y publicá.');
-      abrirPreviaCelu();
+      cambio({ grupo: 'version', previa: false });
+      pedirPrevia({ ya: true });
+      aviso('Listo, la página volvió a esa versión.', { accion: { texto: 'Deshacer', hacer: hacerDeshacer } });
     } catch (err) { aviso(err.message, { error: true }); }
   });
   return [
-    cabeza('Versiones anteriores', 'Cada vez que publicás se guarda cómo estaba antes. Si algo quedó mal, podés volver atrás.'),
-    bloque('', lista, { nota: S.historial.length ? `Se guardan las últimas 15 publicaciones.` : 'Todavía no hay versiones anteriores: aparecen después de la primera publicación.' }),
+    cabeza('Versiones anteriores', 'Cada vez que pasan 20 minutos de cambios se guarda una copia de cómo estaba la página. Si algo quedó mal, volvés a una de estas.'),
+    bloque('', lista, { nota: S.historial.length ? 'Se guardan las últimas 15 copias. Para el último cambio, usá Deshacer (↶).' : 'Todavía no hay copias: la primera aparece después de editar.' }),
   ];
 }
 
 /* Cuenta */
 
 async function vistaCuenta() {
-  const nodos = [cabeza('Cuenta y seguridad', 'Cómo se entra al panel y desde dónde está abierto.')];
+  const nodos = [cabeza('Cuenta y seguridad', 'Se entra con el link del panel. Cada celular o compu donde se abrió queda recordado.')];
   let d;
   try { d = await api('GET', 'admin/seguridad'); } catch (err) { aviso(err.message, { error: true }); return nodos; }
   if (S.ruta !== 'cuenta') return null;
 
-  // Acceso rápido
-  const bio = soportaLlaves() && (await hayBiometria());
-  const rapido = document.createElement('div');
-  rapido.innerHTML = `
-    ${d.llaves.map(k => `
-      <div class="item"><span class="item__cuerpo"><strong>${esc(k.nombre)}</strong><span>Activado ${esc(fmtFecha(k.creada))}${k.usada ? `, último uso ${esc(hace(k.usada))}` : ''}</span></span>
-      <button type="button" class="boton boton--chico boton--claro boton--peligro" data-llave="${esc(k.id)}">Quitar</button></div>`).join('')}
-    ${bio ? `<button type="button" class="agregar" data-activar>${SVG.mas}<span>Activar ${esc(nombreMetodo)} en este dispositivo</span></button>`
-      : (!d.llaves.length ? '<div class="item"><span class="item__cuerpo"><span style="white-space:normal">Desde un celular con Face ID o huella podés entrar sin escribir la contraseña. Se activa desde acá, en ese celular.</span></span></div>' : '')}`;
-  rapido.addEventListener('click', async e => {
-    if (e.target.closest('[data-activar]')) return activarLlave();
-    const b = e.target.closest('[data-llave]');
-    if (b && await confirmar('¿Quitar este acceso?', 'Desde ese dispositivo se va a tener que entrar con la contraseña.', 'Quitar', true)) {
-      await api('DELETE', `admin/passkeys/${encodeURIComponent(b.dataset.llave)}`).then(() => { aviso('Acceso quitado.'); render(); }).catch(err => aviso(err.message, { error: true }));
-    }
-  });
-  nodos.push(bloque(`Entrar con ${nombreMetodo}`, [...rapido.children]));
-
-  // Contraseña
-  const clave = document.createElement('button');
-  clave.type = 'button';
-  clave.className = 'item';
-  clave.innerHTML = `<span class="item__cuerpo"><strong>Cambiar la contraseña</strong><span>${d.claveCambiada ? `Cambiada ${esc(hace(d.claveCambiada))}` : 'Todavía es la que se configuró al principio'}</span></span>${SVG.chev}`;
-  clave.addEventListener('click', cambiarClave);
-  nodos.push(bloque('Contraseña', clave));
-
-  // Sesiones
+  // Dispositivos recordados
   const ses = document.createElement('div');
   ses.innerHTML = d.sesiones.map(s => `
     <div class="item"><span class="item__cuerpo"><strong>${esc(s.disp)}${s.actual ? ' · este' : ''}</strong><span>${esc(s.lugar)}, ${esc(hace(s.vista))}</span></span>
-    ${s.actual ? '' : `<button type="button" class="boton boton--chico boton--claro" data-ses="${esc(s.id)}">Cerrar</button>`}</div>`).join('')
-    + (d.sesiones.length > 1 ? '<button type="button" class="agregar" data-ses="otras"><span>Cerrar todas menos esta</span></button>' : '');
+    ${s.actual ? '' : `<button type="button" class="boton boton--chico boton--claro" data-ses="${esc(s.id)}">Olvidar</button>`}</div>`).join('')
+    + (d.sesiones.length > 1 ? '<button type="button" class="agregar" data-ses="otras"><span>Olvidar todos menos este</span></button>' : '');
   ses.addEventListener('click', async e => {
     const b = e.target.closest('[data-ses]');
     if (!b) return;
-    await api('DELETE', `admin/sesiones/${b.dataset.ses}`).then(r => { aviso(r.cerradas === 1 ? 'Sesión cerrada.' : `${r.cerradas} sesiones cerradas.`); render(); }).catch(err => aviso(err.message, { error: true }));
+    await api('DELETE', `admin/sesiones/${b.dataset.ses}`).then(r => { aviso(r.cerradas === 1 ? 'Dispositivo olvidado.' : `${r.cerradas} dispositivos olvidados.`); render(); }).catch(err => aviso(err.message, { error: true }));
   });
-  nodos.push(bloque('Dónde está abierto el panel', [...ses.children], { nota: 'Si ves un dispositivo que no reconocés, cerralo y cambiá la contraseña.' }));
+  nodos.push(bloque('Dónde está abierto el panel', [...ses.children], {
+    nota: 'Si ves uno que no reconocés, olvidalo. Si el link se pudo haber filtrado, pedile uno nuevo a quien armó la página: el viejo deja de andar.',
+  }));
 
   // Instalar
   if (!esApp() && /iPhone|iPad|Android/.test(navigator.userAgent)) {
     const ins = document.createElement('div');
     ins.className = 'item';
-    ins.innerHTML = `<span class="item__cuerpo"><strong>Tenerlo como app</strong><span style="white-space:normal">${/Android/.test(navigator.userAgent) ? 'En Chrome: menú ⋮ y después “Instalar app”.' : 'En Safari: botón Compartir y después “Agregar a inicio”.'} Queda el globo de Mundograf en la pantalla del celular.</span></span>`;
+    ins.innerHTML = `<span class="item__cuerpo"><strong>Tenerlo como app</strong><span style="white-space:normal">${/Android/.test(navigator.userAgent) ? 'En Chrome: menú ⋮ y después “Instalar app”.' : 'En Safari: botón Compartir y después “Agregar a inicio”.'} Queda el globo de Mundograf en la pantalla del celular y entrás directo.</span></span>`;
     nodos.push(bloque('En el celular', ins));
   }
 
   // Actividad
-  const NOMBRES = { ingreso: 'Entró', fallido: 'Contraseña incorrecta', clave: 'Cambió la contraseña', sesiones: 'Cerró sesiones', 'llave+': 'Activó acceso rápido', 'llave-': 'Quitó acceso rápido' };
+  const NOMBRES = { ingreso: 'Se abrió el panel', fallido: 'Intento con un link que no sirve', sesiones: 'Se olvidaron dispositivos' };
   const act = document.createElement('div');
-  act.innerHTML = d.actividad.slice(0, 12).map(a => `
-    <div class="item"><span class="item__cuerpo"><strong${a.evento === 'fallido' ? ' style="color:var(--peligro)"' : ''}>${esc(NOMBRES[a.evento] || a.evento)}${a.detalle ? ` · ${esc(a.detalle)}` : ''}</strong><span>${esc(a.disp)}, ${esc(a.lugar)}</span></span><span class="item__fin">${esc(hace(a.t))}</span></div>`).join('')
+  act.innerHTML = d.actividad.filter(a => NOMBRES[a.evento]).slice(0, 12).map(a => `
+    <div class="item"><span class="item__cuerpo"><strong${a.evento === 'fallido' ? ' style="color:var(--peligro)"' : ''}>${esc(NOMBRES[a.evento])}${a.detalle ? ` · ${esc(a.detalle)}` : ''}</strong><span>${esc(a.disp)}, ${esc(a.lugar)}</span></span><span class="item__fin">${esc(hace(a.t))}</span></div>`).join('')
     || '<div class="item"><span class="item__cuerpo"><span>Sin actividad todavía.</span></span></div>';
   nodos.push(bloque('Actividad reciente', [...act.children]));
 
   const salir = document.createElement('button');
   salir.type = 'button';
   salir.className = 'boton boton--claro boton--peligro boton--ancho';
-  salir.textContent = 'Salir del panel';
+  salir.textContent = 'Olvidar este dispositivo';
   salir.addEventListener('click', async () => {
-    if (cambios().length && !(await confirmar('¿Salir?', 'Tus cambios sin publicar quedan guardados en este dispositivo para la próxima vez.', 'Salir'))) return;
+    if (!(await confirmar('¿Olvidar este dispositivo?', 'El panel se cierra acá. Para volver a entrar vas a necesitar el link.', 'Olvidar', true))) return;
+    await guardar();
     await api('POST', 'logout').catch(() => {});
     location.hash = '';
-    mostrarIngreso();
+    mostrarIngreso('Listo, este dispositivo ya no está recordado. Para volver a entrar, abrí el link del panel.');
   });
   nodos.push(salir);
   return nodos;
-}
-
-function cambiarClave() {
-  const datos = { actual: '', nueva: '', repetir: '' };
-  const h = hoja({
-    titulo: 'Cambiar la contraseña',
-    cuerpo: '<div data-campos></div><p class="ingreso__error" data-error hidden></p>',
-    pie: '<button type="button" class="boton boton--claro" data-cerrar>Cancelar</button><button type="button" class="boton boton--marca" data-guardar>Cambiar</button>',
-    alAbrir(el) {
-      const c1 = campo({ obj: datos, clave: 'actual', etiqueta: 'Contraseña actual', modo: 'password', autocompletar: 'current-password', aparte: true });
-      const c2 = campo({ obj: datos, clave: 'nueva', etiqueta: 'Nueva contraseña', modo: 'password', autocompletar: 'new-password', ayuda: 'Al menos 10 caracteres. Tres o cuatro palabras sueltas funcionan bien.', aparte: true });
-      const c3 = campo({ obj: datos, clave: 'repetir', etiqueta: 'Repetila', modo: 'password', autocompletar: 'new-password', aparte: true });
-      $('[data-campos]', el).append(bloque('', [c1, c2, c3]));
-      $('input', c1).setAttribute('autofocus', '');
-      const err = $('[data-error]', el);
-      $('[data-guardar]', el).addEventListener('click', async e => {
-        err.hidden = true;
-        if (datos.nueva.length < 10) { err.textContent = 'La nueva contraseña tiene que tener al menos 10 caracteres.'; err.hidden = false; return; }
-        if (datos.nueva !== datos.repetir) { err.textContent = 'Las dos contraseñas nuevas no coinciden.'; err.hidden = false; return; }
-        e.currentTarget.disabled = true;
-        try {
-          const r = await api('PUT', 'admin/clave', { actual: datos.actual, nueva: datos.nueva });
-          h.cerrar(true);
-          aviso(r.cerradas ? `Contraseña cambiada. Se cerraron ${r.cerradas} sesiones en otros dispositivos.` : 'Contraseña cambiada.');
-          render();
-        } catch (er) { err.textContent = er.message; err.hidden = false; e.currentTarget.disabled = false; }
-      });
-    },
-  });
 }
 
 /* ---------- Vista previa ---------- */
@@ -1186,6 +1112,7 @@ function pedirPrevia({ ya = false, ir = '' } = {}) {
 
 function enviarPrevia() {
   if (previa.cargando) { previa.pendiente = true; return; }
+  if (escribiendoEnPrevia) { previa.pendiente = true; return; } // no se recarga mientras se escribe encima
   previa.pendiente = false;
   previa.cargando = true;
   const activo = $('#previa iframe.activo');
@@ -1219,10 +1146,55 @@ function alCargar(f) {
 
 function estadoPrevia() {
   const e = $('#previa-estado');
-  const c = cambios().length;
-  e.className = `previa__estado${previa.cargando ? ' cargando' : c ? ' borrador' : ''}`;
-  e.textContent = previa.cargando ? 'Actualizando…' : c ? 'Con tus cambios sin publicar' : 'Igual a la página publicada';
+  e.className = `previa__estado${previa.cargando ? ' cargando' : ''}`;
+  e.textContent = previa.cargando ? 'Actualizando…' : 'Tocá un texto para cambiarlo';
 }
+
+// Lo que pasa adentro de la vista previa: escribir sobre un texto, tocar una foto o una sección
+let escribiendoEnPrevia = false;
+let tRehacer = 0;
+const PROHIBIDAS = new Set(['__proto__', 'prototype', 'constructor']);
+const SECCION_DE = { top: 'portada', servicios: 'servicios', 'por-que': 'porque', portfolio: 'trabajos', contacto: 'contacto', pie: 'contacto' };
+
+function ponerRuta(ruta, valor) {
+  const partes = String(ruta).split('.');
+  if (partes.some(p => PROHIBIDAS.has(p))) return false;
+  let o = S.borrador;
+  for (let i = 0; i < partes.length - 1; i++) {
+    const p = partes[i];
+    o = p.startsWith('@') && Array.isArray(o) ? o.find(x => x.id === p.slice(1)) : o?.[p];
+    if (!o || typeof o !== 'object') return false;
+  }
+  const ult = partes.at(-1);
+  if (typeof o[ult] !== 'string') return false;
+  o[ult] = String(valor).slice(0, 400);
+  return true;
+}
+
+addEventListener('message', e => {
+  if (e.origin !== location.origin || !e.data?.mg || !S.borrador) return;
+  const d = e.data;
+  if (d.tipo === 'editar') {
+    if (!ponerRuta(d.ruta, d.valor)) return;
+    if (d.ruta === 'portada.titulo' && S.borrador.portada.destacado && !S.borrador.portada.titulo.includes(S.borrador.portada.destacado)) S.borrador.portada.destacado = '';
+    cambio({ previa: false, grupo: `previa-${d.ruta}` });
+    pintarNav();
+    // El formulario se pone al día cuando se deja de escribir (sin tocar la vista previa)
+    clearTimeout(tRehacer);
+    tRehacer = setTimeout(() => { if (!document.activeElement?.closest?.('.editor')) rehacerVista(); }, 700);
+  } else if (d.tipo === 'escribiendo') {
+    escribiendoEnPrevia = !!d.si;
+    if (!d.si) { clearTimeout(tRehacer); rehacerVista(); }
+  } else if (d.tipo === 'foto') {
+    if (S.ruta !== 'trabajos') { irSinPrevia = true; location.hash = '#/trabajos'; }
+    setTimeout(() => editarFoto(d.id), 50);
+  } else if (d.tipo === 'seccion') {
+    const sec = SECCION_DE[d.id];
+    if (sec && S.ruta.split('/')[0] !== sec && !ancho('(max-width: 1179px)')) { irSinPrevia = true; location.hash = `#/${sec}`; }
+  } else if (d.tipo === 'deshacer') {
+    hacerDeshacer();
+  }
+});
 
 function abrirPreviaCelu() {
   const p = $('#previa');
@@ -1245,11 +1217,13 @@ matchMedia('(max-width: 759px)').addEventListener('change', () => irA(location.h
 /* ---------- Otros ---------- */
 
 // Aviso al cerrar la pestaña con fotos subiendo
-addEventListener('beforeunload', e => { if (subidas.size) { e.preventDefault(); e.returnValue = ''; } });
-addEventListener('online', () => aviso('Volvió la conexión.'));
-addEventListener('offline', () => aviso('Estás sin conexión. Podés seguir editando: publicás cuando vuelva.', { error: true }));
-// Refresca "Última vez hace…" de a ratos
-setInterval(() => { if (S.publicado) actualizarPublicar(); }, 60000);
+addEventListener('beforeunload', e => {
+  if (subidas.size || (S.borrador && JSON.stringify(S.borrador) !== S.guardado)) { guardar(); e.preventDefault(); e.returnValue = ''; }
+});
+addEventListener('online', () => { aviso('Volvió la conexión.'); guardar(); });
+addEventListener('offline', () => aviso('Estás sin conexión. Podés seguir editando: se guarda cuando vuelva.', { error: true }));
+addEventListener('pagehide', () => guardar());
+setInterval(() => { if (S.borrador) pintarEstado(); }, 60000);
 
 if ('serviceWorker' in navigator && isSecureContext) navigator.serviceWorker.register('sw.js', { scope: './' }).catch(() => {});
 
